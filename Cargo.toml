@@ -1,0 +1,4 @@
+[package]
+name = "timsort"
+version = "0.1.0"
+authors = ["Michael Howell <michael@notriddle.com>"]
