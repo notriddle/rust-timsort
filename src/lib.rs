@@ -22,4 +22,4 @@
 //! sections (runs) get smaller and smaller.
 
 mod insort;
-
+mod merge;
