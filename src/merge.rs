@@ -20,7 +20,6 @@
 
 use std::cmp::Ordering;
 use std::mem::{swap, uninitialized, replace};
-use std::fmt::Debug;
 
 /// Test mergeing two empty slices.
 #[test]
@@ -98,7 +97,7 @@ fn test_lo_unsorted_multiple() {
 
 /// Merge convenience used for tests.
 #[allow(unused)]
-pub fn merge<T: Ord + Debug>(list: &mut[T], first_len: usize) {
+pub fn merge<T: Ord>(list: &mut[T], first_len: usize) {
     merge_by(list, first_len, |a, b| a.cmp(b) );
 }
 
@@ -106,18 +105,18 @@ pub fn merge<T: Ord + Debug>(list: &mut[T], first_len: usize) {
 ///
 /// `c(a, b)` should return std::cmp::Ordering::Greater when `a` is greater than `b`.
 #[allow(unused)]
-pub fn merge_by<T: Debug, C: Fn(&T, &T) -> Ordering>(list: &mut[T], first_len: usize, c: C) {
+pub fn merge_by<T, C: Fn(&T, &T) -> Ordering>(list: &mut[T], first_len: usize, c: C) {
     let second_len = list.len() - first_len;
-    //if first_len >= second_len {
-    //    merge_hi(list, first_len, second_len, c);
-    //} else {
+    if first_len >= second_len {
+        merge_hi(list, first_len, second_len, c);
+    } else {
         merge_lo(list, first_len, second_len, c);
-    //}
+    }
 }
 
 /// Merge implementation used when the first run is smaller than the second.
 #[allow(unused)]
-pub fn merge_lo<T: Debug, C: Fn(&T, &T) -> Ordering>(list: &mut[T], first_len: usize, second_len: usize, c: C) {
+pub fn merge_lo<T, C: Fn(&T, &T) -> Ordering>(list: &mut[T], first_len: usize, second_len: usize, c: C) {
     unsafe {
         // First, move the smallest run into temporary storage, leaving the
         // original contents uninitialized.
@@ -126,12 +125,14 @@ pub fn merge_lo<T: Debug, C: Fn(&T, &T) -> Ordering>(list: &mut[T], first_len: u
             tmp.push(replace(&mut list[i], uninitialized()));
         }
         // Do the actual merge.
+        let list_len       = list.len();
         let mut first_pos  = 0;
         let mut second_pos = first_len;
         let mut dest_pos   = 0;
         while second_pos > dest_pos {
-            println!("first_pos: {:?}, second_pos: {:?}, dest_pos: {:?}, list: {:?}, tmp: {:?}", first_pos, second_pos, dest_pos, list, tmp);
-            if second_pos < list.len() && c(&tmp[first_pos], &list[second_pos]) == Ordering::Greater {
+            // Make sure gallop doesn't bring our positions out of sync.
+            debug_assert!(first_pos + (second_pos - first_len) == dest_pos);
+            if second_pos < list_len && c(&tmp[first_pos], &list[second_pos]) == Ordering::Greater {
                 list.swap(second_pos, dest_pos);
                 second_pos += 1;
             } else {
@@ -140,6 +141,43 @@ pub fn merge_lo<T: Debug, C: Fn(&T, &T) -> Ordering>(list: &mut[T], first_len: u
             }
             dest_pos += 1;
         }
+        // Verify that we've consumed all the uninitialized.
+        debug_assert!(first_pos == first_len);
+        // The temporary storage is now full of nothing but uninitialized.
+        // We want to deallocate the space, but not call the destructors.
+        tmp.set_len(0);
+    }
+}
+
+/// Merge implementation used when the first run is larger than the second.
+#[allow(unused)]
+pub fn merge_hi<T, C: Fn(&T, &T) -> Ordering>(list: &mut[T], first_len: usize, second_len: usize, c: C) {
+    unsafe {
+        // First, move the smallest run into temporary storage, leaving the
+        // original contents uninitialized.
+        let mut tmp: Vec<T> = Vec::with_capacity(second_len);
+        for i in first_len..(first_len + second_len) {
+            tmp.push(replace(&mut list[i], uninitialized()));
+        }
+        // Do the actual merge.
+        let list_len       = list.len() as isize;
+        let mut first_pos  = first_len as isize - 1;
+        let mut second_pos = second_len as isize - 1;
+        let mut dest_pos   = list_len - 1;
+        while first_pos < dest_pos {
+            // Make sure gallop doesn't bring our positions out of sync.
+            debug_assert!(first_pos + second_pos + 1 == dest_pos);
+            if first_pos < 0 || c(&tmp[second_pos as usize], &list[first_pos as usize]) == Ordering::Greater {
+                swap(&mut tmp[second_pos as usize], &mut list[dest_pos as usize]);
+                second_pos -= 1;
+            } else {
+                list.swap(first_pos as usize, dest_pos as usize);
+                first_pos -= 1;
+            }
+            dest_pos -= 1;
+        }
+        // Verify that we've consumed all the uninitialized.
+        debug_assert!(second_pos == -1);
         // The temporary storage is now full of nothing but uninitialized.
         // We want to deallocate the space, but not call the destructors.
         tmp.set_len(0);
