@@ -19,7 +19,7 @@
 //! that are themselves already sorted.
 
 use std::cmp::Ordering;
-use std::mem::{swap, uninitialized, replace};
+use std::ptr;
 
 /// Test mergeing two empty slices.
 #[test]
@@ -198,7 +198,7 @@ struct MergeLo<'a, T: 'a, C: Fn(&T, &T) -> Ordering> {
 }
 
 impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> MergeLo<'a, T, C> {
-    fn new(list: &'a mut [T], first_len: usize, c: C) -> Self {
+    unsafe fn new(list: &'a mut [T], first_len: usize, c: C) -> Self {
         let mut ret_val = MergeLo{
             list_len:   list.len(),
             first_pos:  0,
@@ -211,23 +211,22 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> MergeLo<'a, T, C> {
         };
         // First, move the smallest run into temporary storage, leaving the
         // original contents uninitialized.
-        unsafe {
-            for i in 0..first_len {
-                ret_val.tmp.push(replace(&mut ret_val.list[i], uninitialized()));
-            }
+        ret_val.tmp.set_len(first_len);
+        for i in 0..first_len {
+            ptr::copy_nonoverlapping(&ret_val.list[i], &mut ret_val.tmp[i], 1);
         }
         return ret_val;
     }
-    fn merge(&mut self) {
+    unsafe fn merge(&mut self) {
         let c = &self.c;
         while self.second_pos > self.dest_pos && self.second_pos < self.list_len {
             // Make sure gallop doesn't bring our positions out of sync.
             debug_assert!(self.first_pos + (self.second_pos - self.first_len) == self.dest_pos);
             if c(&self.tmp[self.first_pos], &self.list[self.second_pos]) == Ordering::Greater {
-                self.list.swap(self.second_pos, self.dest_pos);
+                ptr::copy_nonoverlapping(&self.list[self.second_pos], &mut self.list[self.dest_pos], 1);
                 self.second_pos += 1;
             } else {
-                swap(&mut self.tmp[self.first_pos], &mut self.list[self.dest_pos]);
+                ptr::copy_nonoverlapping(&self.tmp[self.first_pos], &mut self.list[self.dest_pos], 1);
                 self.first_pos += 1;
             }
             self.dest_pos += 1;
@@ -237,20 +236,20 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> MergeLo<'a, T, C> {
 
 impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> Drop for MergeLo<'a, T, C> {
     fn drop(&mut self) {
-        // Make sure that the entire tmp storage is consumed. Since there are no uninitialized
-        // spaces before dest_pos, and no uninitialized space after first_pos, this will ensure
-        // that there are no uninitialized spaces inside the slice after we drop. Thus, the
-        // function is safe.
-        while self.first_pos < self.first_len {
-            // Make sure gallop doesn't bring our positions out of sync.
-            debug_assert!(self.first_pos + (self.second_pos - self.first_len) == self.dest_pos);
-            swap(&mut self.tmp[self.first_pos], &mut self.list[self.dest_pos]);
-            self.first_pos += 1;
-            self.dest_pos += 1;
-        }
-        // The temporary storage is now full of nothing but uninitialized.
-        // We want to deallocate the space, but not call the destructors.
         unsafe {
+            // Make sure that the entire tmp storage is consumed. Since there are no uninitialized
+            // spaces before dest_pos, and no uninitialized space after first_pos, this will ensure
+            // that there are no uninitialized spaces inside the slice after we drop. Thus, the
+            // function is safe.
+            while self.first_pos < self.first_len {
+                // Make sure gallop doesn't bring our positions out of sync.
+                debug_assert!(self.first_pos + (self.second_pos - self.first_len) == self.dest_pos);
+                ptr::copy_nonoverlapping(&self.tmp[self.first_pos], &mut self.list[self.dest_pos], 1);
+                self.first_pos += 1;
+                self.dest_pos += 1;
+            }
+            // The temporary storage is now full of nothing but uninitialized.
+            // We want to deallocate the space, but not call the destructors.
             self.tmp.set_len(0);
         }
     }
@@ -258,8 +257,10 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> Drop for MergeLo<'a, T, C> {
 
 /// Merge implementation used when the first run is smaller than the second.
 pub fn merge_lo<T, C: Fn(&T, &T) -> Ordering>(list: &mut [T], first_len: usize, c: C) {
-    let mut state = MergeLo::new(list, first_len, c);
-    state.merge();
+    unsafe {
+        let mut state = MergeLo::new(list, first_len, c);
+        state.merge();
+    }
 }
 
 struct MergeHi<'a, T: 'a, C: Fn(&T, &T) -> Ordering> {
@@ -272,7 +273,7 @@ struct MergeHi<'a, T: 'a, C: Fn(&T, &T) -> Ordering> {
 }
 
 impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> MergeHi<'a, T, C> {
-    fn new(list: &'a mut [T], first_len: usize, second_len: usize, c: C) -> Self {
+    unsafe fn new(list: &'a mut [T], first_len: usize, second_len: usize, c: C) -> Self {
         let mut ret_val = MergeHi{
             first_pos:  first_len as isize - 1,
             second_pos: second_len as isize - 1,
@@ -283,23 +284,22 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> MergeHi<'a, T, C> {
         };
         // First, move the smallest run into temporary storage, leaving the
         // original contents uninitialized.
-        unsafe {
-            for i in first_len..(first_len + second_len) {
-                ret_val.tmp.push(replace(&mut ret_val.list[i], uninitialized()));
-            }
+        ret_val.tmp.set_len(second_len);
+        for i in 0..second_len {
+            ptr::copy_nonoverlapping(&ret_val.list[i + first_len], &mut ret_val.tmp[i], 1);
         }
         return ret_val;
     }
-    fn merge(&mut self) {
+    unsafe fn merge(&mut self) {
         let c = &self.c;
         while self.first_pos < self.dest_pos && self.first_pos >= 0 {
             // Make sure gallop doesn't bring our positions out of sync.
             debug_assert!(self.first_pos + self.second_pos + 1 == self.dest_pos);
             if c(&self.tmp[self.second_pos as usize], &self.list[self.first_pos as usize]) == Ordering::Greater {
-                swap(&mut self.tmp[self.second_pos as usize], &mut self.list[self.dest_pos as usize]);
+                ptr::copy_nonoverlapping(&self.tmp[self.second_pos as usize], &mut self.list[self.dest_pos as usize], 1);
                 self.second_pos -= 1;
             } else {
-                self.list.swap(self.first_pos as usize, self.dest_pos as usize);
+                ptr::copy_nonoverlapping(&self.list[self.first_pos as usize], &mut self.list[self.dest_pos as usize], 1);
                 self.first_pos -= 1;
             }
             self.dest_pos -= 1;
@@ -309,18 +309,18 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> MergeHi<'a, T, C> {
 
 impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> Drop for MergeHi<'a, T, C> {
     fn drop(&mut self) {
-        // Make sure that the entire tmp storage is consumed. Since there are no uninitialized
-        // spaces before dest_pos, and no uninitialized space after first_pos, this will ensure
-        // that there are no uninitialized spaces inside the slice after we drop. Thus, the
-        // function is safe.
-        while self.second_pos >= 0 {
-            swap(&mut self.tmp[self.second_pos as usize], &mut self.list[self.dest_pos as usize]);
-            self.second_pos -= 1;
-            self.dest_pos -= 1;
-        }
-        // The temporary storage is now full of nothing but uninitialized.
-        // We want to deallocate the space, but not call the destructors.
         unsafe {
+            // Make sure that the entire tmp storage is consumed. Since there are no uninitialized
+            // spaces before dest_pos, and no uninitialized space after first_pos, this will ensure
+            // that there are no uninitialized spaces inside the slice after we drop. Thus, the
+            // function is safe.
+            while self.second_pos >= 0 {
+                ptr::copy_nonoverlapping(&self.tmp[self.second_pos as usize], &mut self.list[self.dest_pos as usize], 1);
+                self.second_pos -= 1;
+                self.dest_pos -= 1;
+            }
+            // The temporary storage is now full of nothing but uninitialized.
+            // We want to deallocate the space, but not call the destructors.
             self.tmp.set_len(0);
         }
     }
@@ -328,7 +328,9 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> Drop for MergeHi<'a, T, C> {
 
 /// Merge implementation used when the first run is larger than the second.
 pub fn merge_hi<T, C: Fn(&T, &T) -> Ordering>(list: &mut [T], first_len: usize, second_len: usize, c: C) {
-    let mut state = MergeHi::new(list, first_len, second_len, c);
-    state.merge();
+    unsafe {
+        let mut state = MergeHi::new(list, first_len, second_len, c);
+        state.merge();
+    }
 }
 
