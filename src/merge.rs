@@ -135,6 +135,40 @@ fn test_hi_panic() {
     assert!(list[4] == 5);
 }
 
+/// Test that the drop() is never run while sorting.
+
+#[test]
+fn test_lo_nodrop() {
+    struct ExplodeOnDrop(usize);
+    impl Drop for ExplodeOnDrop {
+        fn drop(&mut self) {
+            panic!("We're not supposed to panic.");
+        }
+    }
+    let mut list = vec![ExplodeOnDrop(3), ExplodeOnDrop(7), ExplodeOnDrop(2)];
+    merge_by(&mut list, 2, |a, b| {a.0.cmp(&b.0) });
+    assert!(list[0].0 == 2);
+    assert!(list[1].0 == 3);
+    assert!(list[2].0 == 7);
+    unsafe { list.set_len(0); }
+}
+
+#[test]
+fn test_hi_nodrop() {
+    struct ExplodeOnDrop(usize);
+    impl Drop for ExplodeOnDrop {
+        fn drop(&mut self) {
+            panic!("We're not supposed to panic.");
+        }
+    }
+    let mut list = vec![ExplodeOnDrop(3), ExplodeOnDrop(2), ExplodeOnDrop(7)];
+    merge_by(&mut list, 1, |a, b| {a.0.cmp(&b.0) });
+    assert!(list[0].0 == 2);
+    assert!(list[1].0 == 3);
+    assert!(list[2].0 == 7);
+    unsafe { list.set_len(0); }
+}
+
 /// Merge convenience used for tests.
 pub fn merge<T: Ord>(list: &mut [T], first_len: usize) {
     merge_by(list, first_len, |a, b| a.cmp(b) );
