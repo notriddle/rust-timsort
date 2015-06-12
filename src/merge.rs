@@ -186,10 +186,10 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> MergeLo<'a, T, C> {
     }
     fn merge(&mut self) {
         let c = &self.c;
-        while self.second_pos > self.dest_pos {
+        while self.second_pos > self.dest_pos && self.second_pos < self.list_len {
             // Make sure gallop doesn't bring our positions out of sync.
             debug_assert!(self.first_pos + (self.second_pos - self.first_len) == self.dest_pos);
-            if self.second_pos < self.list_len && c(&self.tmp[self.first_pos], &self.list[self.second_pos]) == Ordering::Greater {
+            if c(&self.tmp[self.first_pos], &self.list[self.second_pos]) == Ordering::Greater {
                 self.list.swap(self.second_pos, self.dest_pos);
                 self.second_pos += 1;
             } else {
@@ -261,7 +261,7 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> MergeHi<'a, T, C> {
         while self.first_pos < self.dest_pos && self.first_pos >= 0 {
             // Make sure gallop doesn't bring our positions out of sync.
             debug_assert!(self.first_pos + self.second_pos + 1 == self.dest_pos);
-            if self.first_pos < 0 || c(&self.tmp[self.second_pos as usize], &self.list[self.first_pos as usize]) == Ordering::Greater {
+            if c(&self.tmp[self.second_pos as usize], &self.list[self.first_pos as usize]) == Ordering::Greater {
                 swap(&mut self.tmp[self.second_pos as usize], &mut self.list[self.dest_pos as usize]);
                 self.second_pos -= 1;
             } else {
