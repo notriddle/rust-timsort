@@ -23,3 +23,6 @@
 
 mod insort;
 mod merge;
+
+pub use merge::merge_by;
+pub use merge::merge;
