@@ -186,6 +186,19 @@ pub fn merge_by<T, C: Fn(&T, &T) -> Ordering>(list: &mut [T], first_len: usize, 
     }
 }
 
+/// The number of times any one run can win before we try galloping.
+const min_gallop: usize = 7;
+
+/// Merge implementation used when the first run is smaller than the second.
+pub fn merge_lo<T, C: Fn(&T, &T) -> Ordering>(list: &mut [T], first_len: usize, c: C) {
+    unsafe {
+        let mut state = MergeLo::new(list, first_len, c);
+        state.merge();
+    }
+}
+
+/// Implementation of `merge_lo`. We need to have an object in order to
+/// implement panic safety.
 struct MergeLo<'a, T: 'a, C: Fn(&T, &T) -> Ordering> {
     list_len: usize,
     first_pos: usize,
@@ -196,8 +209,8 @@ struct MergeLo<'a, T: 'a, C: Fn(&T, &T) -> Ordering> {
     tmp: Vec<T>,
     c: C
 }
-
 impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> MergeLo<'a, T, C> {
+    /// Constructor for a lower merge.
     unsafe fn new(list: &'a mut [T], first_len: usize, c: C) -> Self {
         let mut ret_val = MergeLo{
             list_len:   list.len(),
@@ -217,6 +230,7 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> MergeLo<'a, T, C> {
         }
         return ret_val;
     }
+    /// Perform the one-by-one comparison and insertion.
     unsafe fn merge(&mut self) {
         let c = &self.c;
         while self.second_pos > self.dest_pos && self.second_pos < self.list_len {
@@ -233,8 +247,10 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> MergeLo<'a, T, C> {
         }
     }
 }
-
 impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> Drop for MergeLo<'a, T, C> {
+    /// Copy all remaining items in the temporary storage into the list.
+    /// If the comparator panics, the result will not be sorted, but will still
+    /// contain no duplicates or uninitialized spots.
     fn drop(&mut self) {
         unsafe {
             // Make sure that the entire tmp storage is consumed. Since there are no uninitialized
@@ -255,14 +271,16 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> Drop for MergeLo<'a, T, C> {
     }
 }
 
-/// Merge implementation used when the first run is smaller than the second.
-pub fn merge_lo<T, C: Fn(&T, &T) -> Ordering>(list: &mut [T], first_len: usize, c: C) {
+/// Merge implementation used when the first run is larger than the second.
+pub fn merge_hi<T, C: Fn(&T, &T) -> Ordering>(list: &mut [T], first_len: usize, second_len: usize, c: C) {
     unsafe {
-        let mut state = MergeLo::new(list, first_len, c);
+        let mut state = MergeHi::new(list, first_len, second_len, c);
         state.merge();
     }
 }
 
+/// Implementation of `merge_hi`. We need to have an object in order to
+/// implement panic safety.
 struct MergeHi<'a, T: 'a, C: Fn(&T, &T) -> Ordering> {
     first_pos: isize,
     second_pos: isize,
@@ -273,6 +291,7 @@ struct MergeHi<'a, T: 'a, C: Fn(&T, &T) -> Ordering> {
 }
 
 impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> MergeHi<'a, T, C> {
+    /// Constructor for a higher merge.
     unsafe fn new(list: &'a mut [T], first_len: usize, second_len: usize, c: C) -> Self {
         let mut ret_val = MergeHi{
             first_pos:  first_len as isize - 1,
@@ -290,6 +309,7 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> MergeHi<'a, T, C> {
         }
         return ret_val;
     }
+    /// Perform the one-by-one comparison and insertion.
     unsafe fn merge(&mut self) {
         let c = &self.c;
         while self.first_pos < self.dest_pos && self.first_pos >= 0 {
@@ -308,6 +328,9 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> MergeHi<'a, T, C> {
 }
 
 impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> Drop for MergeHi<'a, T, C> {
+    /// Copy all remaining items in the temporary storage into the list.
+    /// If the comparator panics, the result will not be sorted, but will still
+    /// contain no duplicates or uninitialized spots.
     fn drop(&mut self) {
         unsafe {
             // Make sure that the entire tmp storage is consumed. Since there are no uninitialized
@@ -315,6 +338,8 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> Drop for MergeHi<'a, T, C> {
             // that there are no uninitialized spaces inside the slice after we drop. Thus, the
             // function is safe.
             while self.second_pos >= 0 {
+                // Make sure gallop doesn't bring our positions out of sync.
+                debug_assert!(self.first_pos + self.second_pos + 1 == self.dest_pos);
                 ptr::copy_nonoverlapping(&self.tmp[self.second_pos as usize], &mut self.list[self.dest_pos as usize], 1);
                 self.second_pos -= 1;
                 self.dest_pos -= 1;
@@ -323,14 +348,6 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> Drop for MergeHi<'a, T, C> {
             // We want to deallocate the space, but not call the destructors.
             self.tmp.set_len(0);
         }
-    }
-}
-
-/// Merge implementation used when the first run is larger than the second.
-pub fn merge_hi<T, C: Fn(&T, &T) -> Ordering>(list: &mut [T], first_len: usize, second_len: usize, c: C) {
-    unsafe {
-        let mut state = MergeHi::new(list, first_len, second_len, c);
-        state.merge();
     }
 }
 
