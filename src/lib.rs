@@ -1,8 +1,6 @@
-// This file is a part of Timsort-Rust. Based heavily on TimSort.java in
-// Android.
+// This file is a part of Timsort-Rust.
 // 
 // Copyright (C) 2015 Michael Howell
-// Copyright (C) 2008 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,6 +21,11 @@
 
 mod insort;
 mod merge;
+mod gallop;
 
 pub use merge::merge_by;
 pub use merge::merge;
+pub use gallop::gallop_left;
+pub use gallop::gallop_left_by;
+pub use gallop::gallop_right;
+pub use gallop::gallop_right_by;
