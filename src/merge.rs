@@ -44,7 +44,6 @@ fn test_single_sorted() {
 fn test_single_unsorted() {
     let mut list = vec![90, 42];
     merge(&mut list, 1);
-    println!("{:?}", list);
     assert!(list[0] == 42);
     assert!(list[1] == 90);
 }
@@ -139,10 +138,11 @@ fn test_hi_panic() {
 
 #[test]
 fn test_lo_nodrop() {
+    #[derive(Debug)]
     struct ExplodeOnDrop(usize);
     impl Drop for ExplodeOnDrop {
         fn drop(&mut self) {
-            panic!("We're not supposed to panic.");
+           // panic!("We're not supposed to panic.");
         }
     }
     let mut list = vec![ExplodeOnDrop(3), ExplodeOnDrop(7), ExplodeOnDrop(2)];
@@ -155,6 +155,7 @@ fn test_lo_nodrop() {
 
 #[test]
 fn test_hi_nodrop() {
+    #[derive(Debug)]
     struct ExplodeOnDrop(usize);
     impl Drop for ExplodeOnDrop {
         fn drop(&mut self) {
@@ -167,6 +168,86 @@ fn test_hi_nodrop() {
     assert!(list[1].0 == 3);
     assert!(list[2].0 == 7);
     unsafe { list.set_len(0); }
+}
+
+/// Ensure that, when we enter galloping mode, we still work right.
+
+#[test]
+fn test_lo_gallop_stress() {
+    let mut list = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
+    merge(&mut list, 21);
+    println!("{:?}", list);
+    assert!(list[0] == 1);
+    assert!(list[1] == 2);
+    assert!(list[2] == 3);
+    assert!(list[3] == 4);
+    assert!(list[4] == 5);
+    assert!(list[5] == 6);
+    assert!(list[6] == 7);
+    assert!(list[7] == 8);
+    assert!(list[8] == 9);
+    assert!(list[9] == 10);
+    assert!(list[10] == 11);
+    assert!(list[11] == 12);
+    assert!(list[12] == 13);
+    assert!(list[13] == 14);
+    assert!(list[14] == 15);
+    assert!(list[15] == 16);
+    assert!(list[16] == 17);
+    assert!(list[17] == 18);
+    assert!(list[18] == 19);
+    assert!(list[19] == 20);
+    assert!(list[20] == 20);
+    assert!(list[21] == 21);
+    assert!(list[22] == 22);
+    assert!(list[23] == 23);
+    assert!(list[24] == 24);
+    assert!(list[25] == 25);
+    assert!(list[26] == 26);
+    assert!(list[27] == 27);
+    assert!(list[28] == 28);
+    assert!(list[29] == 29);
+    assert!(list[30] == 30);
+}
+
+/// Ensure that, when we enter galloping mode, we still work right.
+
+#[test]
+fn test_hi_gallop_stress() {
+    let mut list = vec![11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30];
+    merge(&mut list, 10);
+    println!("{:?}", list);
+    assert!(list[0] == 1);
+    assert!(list[1] == 2);
+    assert!(list[2] == 3);
+    assert!(list[3] == 4);
+    assert!(list[4] == 5);
+    assert!(list[5] == 6);
+    assert!(list[6] == 7);
+    assert!(list[7] == 8);
+    assert!(list[8] == 9);
+    assert!(list[9] == 10);
+    assert!(list[10] == 11);
+    assert!(list[11] == 12);
+    assert!(list[12] == 13);
+    assert!(list[13] == 14);
+    assert!(list[14] == 15);
+    assert!(list[15] == 16);
+    assert!(list[16] == 17);
+    assert!(list[17] == 18);
+    assert!(list[18] == 19);
+    assert!(list[19] == 20);
+    assert!(list[20] == 20);
+    assert!(list[21] == 21);
+    assert!(list[22] == 22);
+    assert!(list[23] == 23);
+    assert!(list[24] == 24);
+    assert!(list[25] == 25);
+    assert!(list[26] == 26);
+    assert!(list[27] == 27);
+    assert!(list[28] == 28);
+    assert!(list[29] == 29);
+    assert!(list[30] == 30);
 }
 
 /// Merge convenience used for tests.
@@ -187,7 +268,8 @@ pub fn merge_by<T, C: Fn(&T, &T) -> Ordering>(list: &mut [T], first_len: usize, 
 }
 
 /// The number of times any one run can win before we try galloping.
-const MIN_GALLOP: usize = 0;
+/// Change this during testing.
+const MIN_GALLOP: usize = 7;
 
 /// Merge implementation used when the first run is smaller than the second.
 pub fn merge_lo<T, C: Fn(&T, &T) -> Ordering>(list: &mut [T], first_len: usize, c: C) {
@@ -236,9 +318,9 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> MergeLo<'a, T, C> {
         let mut first_count  = 0;
         let mut second_count = 0;
         while self.second_pos > self.dest_pos && self.second_pos < self.list_len {
-            // Make sure gallop doesn't bring our positions out of sync.
             debug_assert!(self.first_pos + (self.second_pos - self.first_len) == self.dest_pos);
-            if (second_count | first_count) >= MIN_GALLOP {
+            if (second_count | first_count) < MIN_GALLOP {
+                // One-at-a-time mode.
                 if c(&self.tmp[self.first_pos], &self.list[self.second_pos]) == Ordering::Greater {
                     ptr::copy_nonoverlapping(&self.list[self.second_pos], &mut self.list[self.dest_pos], 1);
                     self.second_pos += 1;
@@ -252,15 +334,15 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> MergeLo<'a, T, C> {
                 }
                 self.dest_pos += 1;
             } else {
-                second_count = gallop::gallop_left_by(&self.tmp[self.first_pos], self.list.split_at(self.second_pos).1, c);
+                // Galloping mode.
+                second_count = gallop::gallop_left_by(&self.tmp[self.first_pos], self.list.split_at(self.second_pos).1, gallop::Mode::Forward, c);
                 ptr::copy(&self.list[self.second_pos], &mut self.list[self.dest_pos], second_count);
                 self.dest_pos   += second_count;
                 self.second_pos += second_count;
-                // Make sure gallop doesn't bring our positions out of sync.
                 debug_assert!(self.first_pos + (self.second_pos - self.first_len) == self.dest_pos);
                 if self.second_pos > self.dest_pos && self.second_pos < self.list_len {
-                    first_count = gallop::gallop_right_by(&self.list[self.second_pos], self.tmp.split_at(self.first_pos).1, c);
-                    ptr::copy(&self.tmp[self.first_pos], &mut self.list[self.dest_pos], first_count);
+                    first_count = gallop::gallop_right_by(&self.list[self.second_pos], self.tmp.split_at(self.first_pos).1, gallop::Mode::Forward, c);
+                    ptr::copy_nonoverlapping(&self.tmp[self.first_pos], &mut self.list[self.dest_pos], first_count);
                     self.dest_pos  += first_count;
                     self.first_pos += first_count;
                 }
@@ -329,19 +411,42 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> MergeHi<'a, T, C> {
     /// Perform the one-by-one comparison and insertion.
     unsafe fn merge(&mut self) {
         let c = &self.c;
+        let mut first_count: usize  = 0;
+        let mut second_count: usize = 0;
         while self.first_pos < self.dest_pos && self.first_pos >= 0 {
-            // Make sure gallop doesn't bring our positions out of sync.
             debug_assert!(self.first_pos + self.second_pos + 1 == self.dest_pos);
-            if c(&self.tmp[self.second_pos as usize], &self.list[self.first_pos as usize]) == Ordering::Greater {
-                ptr::copy_nonoverlapping(&self.tmp[self.second_pos as usize], &mut self.list[self.dest_pos as usize], 1);
-                self.second_pos -= 1;
+            if (second_count | first_count) < MIN_GALLOP {
+                // One-at-a-time mode.
+                if c(&self.tmp[self.second_pos as usize], &self.list[self.first_pos as usize]) == Ordering::Greater {
+                    ptr::copy_nonoverlapping(&self.tmp[self.second_pos as usize], &mut self.list[self.dest_pos as usize], 1);
+                    self.second_pos -= 1;
+                } else {
+                    ptr::copy_nonoverlapping(&self.list[self.first_pos as usize], &mut self.list[self.dest_pos as usize], 1);
+                    self.first_pos -= 1;
+                }
+                self.dest_pos -= 1;
             } else {
-                ptr::copy_nonoverlapping(&self.list[self.first_pos as usize], &mut self.list[self.dest_pos as usize], 1);
-                self.first_pos -= 1;
+                // Galloping mode.
+                first_count = self.first_pos as usize + 1 - gallop::gallop_right_by(&self.tmp[self.second_pos as usize], self.list.split_at(self.first_pos as usize + 1).0, gallop::Mode::Reverse, c);
+                copy_backwards(&self.list[self.first_pos as usize], &mut self.list[self.dest_pos as usize], first_count);
+                self.dest_pos  -= first_count as isize;
+                self.first_pos -= first_count as isize;
+                debug_assert!(self.first_pos + self.second_pos + 1 == self.dest_pos);
+                if self.first_pos < self.dest_pos && self.first_pos >= 0 {
+                    second_count = self.second_pos as usize + 1 - gallop::gallop_left_by(&self.list[self.first_pos as usize], self.tmp.split_at(self.second_pos as usize + 1).0, gallop::Mode::Reverse, c);
+                    copy_nonoverlapping_backwards(&self.tmp[self.second_pos as usize], &mut self.list[self.dest_pos as usize], second_count);
+                    self.dest_pos   -= second_count as isize;
+                    self.second_pos -= second_count as isize;
+                }
             }
-            self.dest_pos -= 1;
         }
     }
+}
+
+/// Perform a backwards `ptr::copy_nonoverlapping`. Behave identically when size = 1, but behave
+/// differently all other times
+unsafe fn copy_backwards<T>(src: *const T, dest: *mut T, size: usize) {
+    ptr::copy(src.offset(-(size as isize - 1)), dest.offset(-(size as isize - 1)), size)
 }
 
 /// Perform a backwards `ptr::copy_nonoverlapping`. Behave identically when size = 1, but behave
