@@ -20,6 +20,7 @@
 
 use std::cmp::Ordering;
 use std::ptr;
+use gallop;
 
 /// Test mergeing two empty slices.
 #[test]
@@ -43,6 +44,7 @@ fn test_single_sorted() {
 fn test_single_unsorted() {
     let mut list = vec![90, 42];
     merge(&mut list, 1);
+    println!("{:?}", list);
     assert!(list[0] == 42);
     assert!(list[1] == 90);
 }
@@ -107,7 +109,6 @@ fn test_lo_panic() {
             merge_by(list2, 3, |_, _| { panic!("Expected panic: this is normal") });
         }).join().err().unwrap();
     }
-    println!("{:?}", list);
     assert!(list[0] == 1);
     assert!(list[1] == 2);
     assert!(list[2] == 3);
@@ -127,7 +128,6 @@ fn test_hi_panic() {
             merge_by(list2, 2, |_, _| { panic!("Expected panic: this is normal") });
         }).join().err().unwrap();
     }
-    println!("{:?}", list);
     assert!(list[0] == 1);
     assert!(list[1] == 2);
     assert!(list[2] == 3);
@@ -187,7 +187,7 @@ pub fn merge_by<T, C: Fn(&T, &T) -> Ordering>(list: &mut [T], first_len: usize, 
 }
 
 /// The number of times any one run can win before we try galloping.
-const min_gallop: usize = 7;
+const MIN_GALLOP: usize = 0;
 
 /// Merge implementation used when the first run is smaller than the second.
 pub fn merge_lo<T, C: Fn(&T, &T) -> Ordering>(list: &mut [T], first_len: usize, c: C) {
@@ -207,7 +207,7 @@ struct MergeLo<'a, T: 'a, C: Fn(&T, &T) -> Ordering> {
     dest_pos: usize,
     list: &'a mut [T],
     tmp: Vec<T>,
-    c: C
+    c: C,
 }
 impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> MergeLo<'a, T, C> {
     /// Constructor for a lower merge.
@@ -220,7 +220,7 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> MergeLo<'a, T, C> {
             dest_pos:   0,
             list:       list,
             tmp:        Vec::with_capacity(first_len),
-            c:          c
+            c:          c,
         };
         // First, move the smallest run into temporary storage, leaving the
         // original contents uninitialized.
@@ -233,17 +233,38 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> MergeLo<'a, T, C> {
     /// Perform the one-by-one comparison and insertion.
     unsafe fn merge(&mut self) {
         let c = &self.c;
+        let mut first_count  = 0;
+        let mut second_count = 0;
         while self.second_pos > self.dest_pos && self.second_pos < self.list_len {
             // Make sure gallop doesn't bring our positions out of sync.
             debug_assert!(self.first_pos + (self.second_pos - self.first_len) == self.dest_pos);
-            if c(&self.tmp[self.first_pos], &self.list[self.second_pos]) == Ordering::Greater {
-                ptr::copy_nonoverlapping(&self.list[self.second_pos], &mut self.list[self.dest_pos], 1);
-                self.second_pos += 1;
+            if (second_count | first_count) >= MIN_GALLOP {
+                if c(&self.tmp[self.first_pos], &self.list[self.second_pos]) == Ordering::Greater {
+                    ptr::copy_nonoverlapping(&self.list[self.second_pos], &mut self.list[self.dest_pos], 1);
+                    self.second_pos += 1;
+                    second_count += 1;
+                    first_count = 0;
+                } else {
+                    ptr::copy_nonoverlapping(&self.tmp[self.first_pos], &mut self.list[self.dest_pos], 1);
+                    self.first_pos += 1;
+                    first_count += 1;
+                    second_count = 0;
+                }
+                self.dest_pos += 1;
             } else {
-                ptr::copy_nonoverlapping(&self.tmp[self.first_pos], &mut self.list[self.dest_pos], 1);
-                self.first_pos += 1;
+                second_count = gallop::gallop_left_by(&self.tmp[self.first_pos], self.list.split_at(self.second_pos).1, c);
+                ptr::copy(&self.list[self.second_pos], &mut self.list[self.dest_pos], second_count);
+                self.dest_pos   += second_count;
+                self.second_pos += second_count;
+                // Make sure gallop doesn't bring our positions out of sync.
+                debug_assert!(self.first_pos + (self.second_pos - self.first_len) == self.dest_pos);
+                if self.second_pos > self.dest_pos && self.second_pos < self.list_len {
+                    first_count = gallop::gallop_right_by(&self.list[self.second_pos], self.tmp.split_at(self.first_pos).1, c);
+                    ptr::copy(&self.tmp[self.first_pos], &mut self.list[self.dest_pos], first_count);
+                    self.dest_pos  += first_count;
+                    self.first_pos += first_count;
+                }
             }
-            self.dest_pos += 1;
         }
     }
 }
@@ -257,12 +278,8 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> Drop for MergeLo<'a, T, C> {
             // spaces before dest_pos, and no uninitialized space after first_pos, this will ensure
             // that there are no uninitialized spaces inside the slice after we drop. Thus, the
             // function is safe.
-            while self.first_pos < self.first_len {
-                // Make sure gallop doesn't bring our positions out of sync.
-                debug_assert!(self.first_pos + (self.second_pos - self.first_len) == self.dest_pos);
-                ptr::copy_nonoverlapping(&self.tmp[self.first_pos], &mut self.list[self.dest_pos], 1);
-                self.first_pos += 1;
-                self.dest_pos += 1;
+            if self.first_pos < self.first_len {
+                ptr::copy_nonoverlapping(&self.tmp[self.first_pos], &mut self.list[self.dest_pos], self.first_len - self.first_pos);
             }
             // The temporary storage is now full of nothing but uninitialized.
             // We want to deallocate the space, but not call the destructors.
@@ -327,6 +344,12 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> MergeHi<'a, T, C> {
     }
 }
 
+/// Perform a backwards `ptr::copy_nonoverlapping`. Behave identically when size = 1, but behave
+/// differently all other times
+unsafe fn copy_nonoverlapping_backwards<T>(src: *const T, dest: *mut T, size: usize) {
+    ptr::copy_nonoverlapping(src.offset(-(size as isize - 1)), dest.offset(-(size as isize - 1)), size)
+}
+
 impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> Drop for MergeHi<'a, T, C> {
     /// Copy all remaining items in the temporary storage into the list.
     /// If the comparator panics, the result will not be sorted, but will still
@@ -337,13 +360,10 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> Drop for MergeHi<'a, T, C> {
             // spaces before dest_pos, and no uninitialized space after first_pos, this will ensure
             // that there are no uninitialized spaces inside the slice after we drop. Thus, the
             // function is safe.
-            while self.second_pos >= 0 {
-                // Make sure gallop doesn't bring our positions out of sync.
-                debug_assert!(self.first_pos + self.second_pos + 1 == self.dest_pos);
-                ptr::copy_nonoverlapping(&self.tmp[self.second_pos as usize], &mut self.list[self.dest_pos as usize], 1);
-                self.second_pos -= 1;
-                self.dest_pos -= 1;
+            if self.second_pos >= 0 {
+                copy_nonoverlapping_backwards(&self.tmp[self.second_pos as usize], &mut self.list[self.dest_pos as usize], self.second_pos as usize + 1);
             }
+
             // The temporary storage is now full of nothing but uninitialized.
             // We want to deallocate the space, but not call the destructors.
             self.tmp.set_len(0);
