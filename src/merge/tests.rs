@@ -174,7 +174,6 @@ fn hi_nodrop() {
 fn lo_gallop_stress() {
     let mut list = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
     merge(&mut list, 21);
-    println!("{:?}", list);
     assert!(list[0] == 1);
     assert!(list[1] == 2);
     assert!(list[2] == 3);
@@ -214,7 +213,6 @@ fn lo_gallop_stress() {
 fn hi_gallop_stress() {
     let mut list = vec![11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30];
     merge(&mut list, 10);
-    println!("{:?}", list);
     assert!(list[0] == 1);
     assert!(list[1] == 2);
     assert!(list[2] == 3);

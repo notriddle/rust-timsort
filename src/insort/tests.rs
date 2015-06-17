@@ -48,7 +48,6 @@ fn unsorted() {
 fn reverse() {
     let mut list = vec![21, 18, 7, 1];
     sort(&mut list);
-    println!("{:?}", list);
     assert!(list[0] == 1);
     assert!(list[1] == 7);
     assert!(list[2] == 18);
@@ -87,7 +86,6 @@ fn stable() {
         };
     }).collect();
     insort::sort(&mut list, |a, b| a.key1.cmp(&b.key1));
-    println!("{:?}", list);
     for i in (0 .. (len - 1)) {
         assert!(list[i].key1 <= list[i + 1].key1);
         if list[i].key1 == list[i + 1].key1 {
