@@ -14,30 +14,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! The bottom sorting algorithm (we could just have 1-element runs and do all
-//! the sorting with the merge algorithm, but that would be much slower).
+//! The top sorting algorithm; that is, the modified merge sort we keep
+//! talking about.
 
-use std::cmp::Ordering;
+use sort as timsort;
 
-/// Test the insertion sort implementation with an empty list
+/// Test the sort implementation with an empty list
 #[test]
-fn test_empty() {
+fn empty() {
     let mut list: Vec<u32> = vec![];
     sort(&mut list);
     assert!(list.len() == 0);
 }
 
-/// Test the insertion sort implementation with a single-element list
+/// Test the sort implementation with a single-element list
 #[test]
-fn test_single() {
+fn single() {
     let mut list = vec![42];
     sort(&mut list);
     assert!(list[0] == 42);
 }
 
-/// Test the insertion sort implementation with a short unsorted list
+/// Test the sort implementation with a short unsorted list
 #[test]
-fn test_unsorted() {
+fn unsorted() {
     let mut list = vec![3, 1, 0, 4];
     sort(&mut list);
     assert!(list[0] == 0);
@@ -46,9 +46,9 @@ fn test_unsorted() {
     assert!(list[3] == 4);
 }
 
-/// Test the insertion sort implementation with a short backward list
+/// Test the sort implementation with a short backward list
 #[test]
-fn test_reverse() {
+fn reverse() {
     let mut list = vec![21, 18, 7, 1];
     sort(&mut list);
     println!("{:?}", list);
@@ -58,9 +58,9 @@ fn test_reverse() {
     assert!(list[3] == 21);
 }
 
-/// Test the insertion sort implementation with a short unsorted list
+/// Test the sort implementation with a short unsorted list
 #[test]
-fn test_sorted() {
+fn sorted() {
     let mut list = vec![0, 1, 2, 3];
     sort(&mut list);
     assert!(list[0] == 0);
@@ -69,23 +69,8 @@ fn test_sorted() {
     assert!(list[3] == 3);
 }
 
-/// Insertion sort implementation convenience used for tests.
+/// Sort implementation convenience used for tests.
 pub fn sort<T: Ord>(list: &mut[T]) {
-    sort_by(list, |a, b| a.cmp(b) );
+    timsort::sort(list, |a, b| a.cmp(b) );
 }
 
-/// Sorts the list using insertion sort.
-///
-/// `c(a, b)` should return std::cmp::Ordering::Greater when `a` is greater than `b`.
-pub fn sort_by<T, C: Fn(&T, &T) -> Ordering>(list: &mut [T], c: C) {
-    let len = list.len();
-    let mut pos = 1;
-    while pos < len {
-        let mut pos_sorted = pos;
-        while pos_sorted > 0 && c(&list[pos_sorted - 1], &list[pos_sorted]) == Ordering::Greater {
-            list.swap(pos_sorted - 1, pos_sorted);
-            pos_sorted -= 1;
-        }
-        pos += 1;
-    }
-}

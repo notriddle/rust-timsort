@@ -17,66 +17,14 @@
 //! The top sorting algorithm; that is, the modified merge sort we keep
 //! talking about.
 
+#[cfg(test)]
+mod tests;
+
 use std::cmp::Ordering;
 use std::cmp::min;
-use find_run::get_run_by;
+use find_run::get_run;
 use insort;
-use merge;
-
-/// Test the sort implementation with an empty list
-#[test]
-fn test_empty() {
-    let mut list: Vec<u32> = vec![];
-    sort(&mut list);
-    assert!(list.len() == 0);
-}
-
-/// Test the sort implementation with a single-element list
-#[test]
-fn test_single() {
-    let mut list = vec![42];
-    sort(&mut list);
-    assert!(list[0] == 42);
-}
-
-/// Test the sort implementation with a short unsorted list
-#[test]
-fn test_unsorted() {
-    let mut list = vec![3, 1, 0, 4];
-    sort(&mut list);
-    assert!(list[0] == 0);
-    assert!(list[1] == 1);
-    assert!(list[2] == 3);
-    assert!(list[3] == 4);
-}
-
-/// Test the sort implementation with a short backward list
-#[test]
-fn test_reverse() {
-    let mut list = vec![21, 18, 7, 1];
-    sort(&mut list);
-    println!("{:?}", list);
-    assert!(list[0] == 1);
-    assert!(list[1] == 7);
-    assert!(list[2] == 18);
-    assert!(list[3] == 21);
-}
-
-/// Test the sort implementation with a short unsorted list
-#[test]
-fn test_sorted() {
-    let mut list = vec![0, 1, 2, 3];
-    sort(&mut list);
-    assert!(list[0] == 0);
-    assert!(list[1] == 1);
-    assert!(list[2] == 2);
-    assert!(list[3] == 3);
-}
-
-/// Sort implementation convenience used for tests.
-pub fn sort<T: Ord>(list: &mut[T]) {
-    sort_by(list, |a, b| a.cmp(b) );
-}
+use merge::merge;
 
 /// Minimum run length to merge; anything shorter will be lengthend and
 /// sorted using `insort::sort`.
@@ -141,12 +89,12 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> SortState<'a, T, C> {
         let min_run = self.min_run;
         while self.pos < list_len {
             let pos = self.pos;
-            let mut run_len = get_run_by(self.list.split_at_mut(pos).1, &self.c);
+            let mut run_len = get_run(self.list.split_at_mut(pos).1, &self.c);
             let run_min_len = min(min_run, list_len - pos);
             if run_len < run_min_len {
                 run_len = run_min_len;
                 let l = self.list.split_at_mut(pos).1.split_at_mut(run_len).0;
-                insort::sort_by(l, &self.c);
+                insort::sort(l, &self.c);
             }
             self.runs.push(Run{
                 pos: pos,
@@ -180,7 +128,7 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> SortState<'a, T, C> {
                 };
                 let l = self.list.split_at_mut(run1.pos).1;
                 let l = l.split_at_mut(run1.len + run2.len).0;
-                merge::merge_by(l, run1.len, &self.c);
+                merge(l, run1.len, &self.c);
             } else {
                 break; // Invariant established.
             }
@@ -205,7 +153,7 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> SortState<'a, T, C> {
             };
             let l = self.list.split_at_mut(run1.pos).1;
             let l = l.split_at_mut(run1.len + run2.len).0;
-            merge::merge_by(l, run1.len, &self.c);
+            merge(l, run1.len, &self.c);
         }
     }
 }
@@ -213,7 +161,7 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> SortState<'a, T, C> {
 /// Sorts the list using merge sort.
 ///
 /// `c(a, b)` should return std::cmp::Ordering::Greater when `a` is greater than `b`.
-pub fn sort_by<T, C: Fn(&T, &T) -> Ordering>(list: &mut [T], c: C) {
+pub fn sort<T, C: Fn(&T, &T) -> Ordering>(list: &mut [T], c: C) {
     let mut sort_state = SortState::new(list, c);
     sort_state.sort();
 }

@@ -25,17 +25,5 @@ mod gallop;
 mod find_run;
 mod sort;
 
-pub use merge::merge_by;
-pub use merge::merge;
-pub use gallop::gallop_left;
-pub use gallop::gallop_left_by;
-pub use gallop::gallop_right;
-pub use gallop::gallop_right_by;
-pub use find_run::find_run;
-pub use find_run::find_run_by;
-pub use find_run::get_run;
-pub use find_run::get_run_by;
 pub use sort::sort;
-pub use sort::sort_by;
-//pub use insort::sort;
-//pub use insort::sort_by;
+
