@@ -70,7 +70,6 @@ fn test_sorted() {
 }
 
 /// Insertion sort implementation convenience used for tests.
-#[allow(unused)]
 pub fn sort<T: Ord>(list: &mut[T]) {
     sort_by(list, |a, b| a.cmp(b) );
 }
@@ -78,7 +77,6 @@ pub fn sort<T: Ord>(list: &mut[T]) {
 /// Sorts the list using insertion sort.
 ///
 /// `c(a, b)` should return std::cmp::Ordering::Greater when `a` is greater than `b`.
-#[allow(unused)]
 pub fn sort_by<T, C: Fn(&T, &T) -> Ordering>(list: &mut [T], c: C) {
     let len = list.len();
     let mut pos = 1;
