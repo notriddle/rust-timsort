@@ -66,16 +66,12 @@ struct SortState<'a, T: 'a, C: Fn(&T, &T) -> Ordering> {
     /// The current position in the list. When `pos == list.len()`, we can now
     /// merge the last of the runs, and we're done.
     pos: usize,
-    /// Minimum run size to use merge sort on. Any sorted sections of the list
-    /// that are shorter than this are lengthened using `insort::sort`.
-    min_run: usize,
 }
 
 impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> SortState<'a, T, C> {
 
     fn new(list: &'a mut [T], c: C) -> SortState<'a, T, C> {
         SortState {
-            min_run: calc_min_merge(list.len()),
             list: list,
             c: c,
             runs: Vec::new(),
@@ -86,7 +82,9 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> SortState<'a, T, C> {
     /// The outer loop. Find runs, and move forward.
     fn sort(&mut self) {
         let list_len = self.list.len();
-        let min_run = self.min_run;
+        // Minimum run size to use merge sort on. Any sorted sections of the
+        // list that are shorter than this are lengthened using `insort::sort`.
+        let min_run = calc_min_merge(list_len);
         while self.pos < list_len {
             let pos = self.pos;
             let mut run_len = get_run(self.list.split_at_mut(pos).1, &self.c);
@@ -121,6 +119,7 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> SortState<'a, T, C> {
                     (n, n + 1)
                 };
                 let (run1, run2) = (runs[pos1], runs[pos2]);
+                debug_assert_eq!(run1.pos + run1.len, run2.pos);
                 runs.remove(pos2);
                 runs[pos1] = Run{
                     pos: run1.pos,
@@ -140,12 +139,13 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> SortState<'a, T, C> {
         let runs = &mut self.runs;
         while runs.len() > 1 {
             let n = runs.len() - 2;
-            let (pos1, pos2) = if runs[n - 1].len < runs[n + 1].len {
+            let (pos1, pos2) = if n > 0 && runs[n - 1].len < runs[n + 1].len {
                 (n - 1, n)
             } else {
                 (n, n + 1)
             };
             let (run1, run2) = (runs[pos1], runs[pos2]);
+            debug_assert_eq!(run1.len, run2.pos);
             runs.remove(pos2);
             runs[pos1] = Run{
                 pos: run1.pos,
@@ -162,6 +162,10 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> SortState<'a, T, C> {
 ///
 /// `c(a, b)` should return std::cmp::Ordering::Greater when `a` is greater than `b`.
 pub fn sort<T, C: Fn(&T, &T) -> Ordering>(list: &mut [T], c: C) {
-    let mut sort_state = SortState::new(list, c);
-    sort_state.sort();
+    if list.len() < MIN_MERGE {
+        insort::sort(list, c);
+    } else {
+        let mut sort_state = SortState::new(list, c);
+        sort_state.sort();
+    }
 }

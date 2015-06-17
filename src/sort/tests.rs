@@ -69,8 +69,67 @@ fn sorted() {
     assert!(list[3] == 3);
 }
 
+/// Make sure the sort is stable.
+#[test]
+fn stable_npow2() {
+    let len = 259;
+    let mut key1: usize = 0;
+    let mut key2: usize = 0;
+    #[derive(Debug)]
+    struct Item {
+        key1: usize,
+        key2: usize,
+    };
+    let mut list: Vec<Item> = (0..len).map(|_| {
+        key1 += 1;
+        key1 %= 5;
+        key2 += 1;
+        return Item {
+            key1: key1,
+            key2: key2,
+        };
+    }).collect();
+    timsort::sort(&mut list, |a, b| a.key1.cmp(&b.key1));
+    for i in (0 .. (len - 1)) {
+        assert!(list[i].key1 <= list[i + 1].key1);
+        if list[i].key1 == list[i + 1].key1 {
+            assert!(list[i].key2 <= list[i + 1].key2);
+        }
+    }
+}
+/// Make sure the sort is stable.
+#[test]
+fn stable() {
+    let len = 256;
+    let mut key1: usize = 0;
+    let mut key2: usize = 0;
+    #[derive(Debug)]
+    struct Item {
+        key1: usize,
+        key2: usize,
+    };
+    let mut list: Vec<Item> = (0..len).map(|_| {
+        key1 += 1;
+        key1 %= 5;
+        key2 += 1;
+        return Item {
+            key1: key1,
+            key2: key2,
+        };
+    }).collect();
+    timsort::sort(&mut list, |a, b| a.key1.cmp(&b.key1));
+    println!("{:?}", list);
+    for i in (0 .. (len - 1)) {
+        assert!(list[i].key1 <= list[i + 1].key1);
+        if list[i].key1 == list[i + 1].key1 {
+            assert!(list[i].key2 <= list[i + 1].key2);
+        }
+    }
+}
+
 /// Sort implementation convenience used for tests.
 pub fn sort<T: Ord>(list: &mut[T]) {
-    timsort::sort(list, |a, b| a.cmp(b) );
+    let mut sort_state = timsort::SortState::new(list, |a, b| a.cmp(b) );
+    sort_state.sort();
 }
 

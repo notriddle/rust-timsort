@@ -187,7 +187,7 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> MergeHi<'a, T, C> {
             debug_assert!(self.first_pos + self.second_pos + 1 == self.dest_pos);
             if (second_count | first_count) < MIN_GALLOP {
                 // One-at-a-time mode.
-                if c(&self.tmp[self.second_pos as usize], &self.list[self.first_pos as usize]) == Ordering::Greater {
+                if c(&self.tmp[self.second_pos as usize], &self.list[self.first_pos as usize]) != Ordering::Less {
                     ptr::copy_nonoverlapping(&self.tmp[self.second_pos as usize], &mut self.list[self.dest_pos as usize], 1);
                     self.second_pos -= 1;
                 } else {
