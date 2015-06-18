@@ -25,5 +25,11 @@ mod gallop;
 mod find_run;
 mod sort;
 
-pub use sort::sort;
+pub use sort::sort as sort_by;
 
+use std::cmp::Ordering;
+pub fn sort<T: PartialOrd>(list: &mut [T]) {
+    sort_by(list, |a, b| {
+        a.partial_cmp(b).unwrap_or(Ordering::Equal)
+    })
+}
