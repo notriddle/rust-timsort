@@ -21,19 +21,30 @@
 mod tests;
 
 use std::cmp::Ordering;
+use std::ptr;
+use std::mem;
 
 /// Sorts the list using insertion sort.
 ///
 /// `c(a, b)` should return std::cmp::Ordering::Greater when `a` is greater than `b`.
+// This version was almost completely copied from libcollections/slice.rs
 pub fn sort<T, C: Fn(&T, &T) -> Ordering>(list: &mut [T], c: C) {
-    let len = list.len();
-    let mut pos = 1;
-    while pos < len {
-        let mut pos_sorted = pos;
-        while pos_sorted > 0 && c(&list[pos_sorted - 1], &list[pos_sorted]) == Ordering::Greater {
-            list.swap(pos_sorted - 1, pos_sorted);
-            pos_sorted -= 1;
+    unsafe {
+        let list_ptr = list.as_mut_ptr();
+        let len = list.len();
+        for i in 0..len {
+            let mut j = i;
+            let list_i = list_ptr.offset(i as isize);
+            while j > 0 && c(&*list_i, &*list_ptr.offset(j as isize - 1)) == Ordering::Less {
+                j -= 1;
+            }
+            if i != j {
+                let list_j = list_ptr.offset(j as isize);
+                let tmp = ptr::read(list_i);
+                ptr::copy(list_j, list_j.offset(1), i - j);
+                ptr::copy_nonoverlapping(&tmp, list_j, 1);
+                mem::forget(tmp);
+            }
         }
-        pos += 1;
     }
 }
