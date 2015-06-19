@@ -2,3 +2,7 @@
 name = "timsort"
 version = "0.1.0"
 authors = ["Michael Howell <michael@notriddle.com>"]
+
+[dev-dependencies]
+rand = "0.3.8"
+
