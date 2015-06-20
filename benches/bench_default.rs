@@ -7,10 +7,14 @@ extern crate timsort;
 extern crate test;
 extern crate rand;
 
-use timsort::sort;
 use rand::{weak_rng, Rng};
 use std::mem;
 use test::Bencher;
+
+#[inline]
+fn sort<T: Ord>(l: &mut [T]) {
+    l.sort();
+}
 
 type BigSortable = (u64,u64,u64,u64);
 
