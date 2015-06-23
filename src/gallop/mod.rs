@@ -32,7 +32,7 @@ pub enum Mode {
 pub fn gallop_left<T, C: Fn(&T, &T) -> Ordering>(key: &T, list: &[T], mode: Mode, c: C) -> usize {
     let (mut base, mut lim) = gallop(key, list, mode, &c);
     while lim != 0 {
-        let ix = base + (lim >> 1);
+        let ix = base + (lim / 2);
         match c(&list[ix], key) {
             Ordering::Less => {
                 base = ix + 1;
@@ -41,13 +41,14 @@ pub fn gallop_left<T, C: Fn(&T, &T) -> Ordering>(key: &T, list: &[T], mode: Mode
             Ordering::Greater => (),
             Ordering::Equal => {
                 if ix == 0 || c(&list[ix - 1], key) == Ordering::Less {
-                    return ix;
+                    base = ix;
+                    break;
                 }
             },
         };
-        lim >>= 1;
+        lim /= 2;
     }
-    return base;
+    base
 }
 
 /// Returns the index where key should be inserted, assuming it shoul be placed
@@ -56,7 +57,7 @@ pub fn gallop_right<T, C: Fn(&T, &T) -> Ordering>(key: &T, list: &[T], mode: Mod
     let list_len = list.len();
     let (mut base, mut lim) = gallop(key, list, mode, &c);
     while lim != 0 {
-        let ix = base + (lim >> 1);
+        let ix = base + (lim / 2);
         match c(&list[ix], key) {
             Ordering::Less => {
                 base = ix + 1;
@@ -64,17 +65,17 @@ pub fn gallop_right<T, C: Fn(&T, &T) -> Ordering>(key: &T, list: &[T], mode: Mod
             },
             Ordering::Greater => (),
             Ordering::Equal => {
+                base = ix + 1;
                 if ix == list_len - 1 || c(&list[ix + 1], key) == Ordering::Greater {
-                    return ix + 1;
+                    break;
                 } else {
-                    base = ix + 1;
                     lim -= 1;
                 }
             },
         };
-        lim >>= 1;
+        lim /= 2;
     }
-    return base;
+    base
 }
 
 
@@ -105,7 +106,7 @@ fn gallop<T, C: Fn(&T, &T) -> Ordering>(key: &T, list: &[T], mode: Mode, c: C) -
             if next_val > list_len {
                 next_val = list_len;
             }
-            return (prev_val, next_val - prev_val);
+            (prev_val, next_val - prev_val)
         },
         Mode::Reverse => {
             let mut prev_val = list_len;
@@ -126,7 +127,7 @@ fn gallop<T, C: Fn(&T, &T) -> Ordering>(key: &T, list: &[T], mode: Mode, c: C) -
                     },
                 }
             }
-            return (next_val, prev_val - next_val);
+            (next_val, prev_val - next_val)
         }
     }
 }

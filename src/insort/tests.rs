@@ -80,10 +80,10 @@ fn stable() {
         key1 += 1;
         key1 %= 5;
         key2 += 1;
-        return Item {
+        Item {
             key1: key1,
             key2: key2,
-        };
+        }
     }).collect();
     insort::sort(&mut list, |a, b| a.key1.cmp(&b.key1));
     for i in (0 .. (len - 1)) {

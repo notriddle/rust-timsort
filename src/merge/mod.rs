@@ -97,7 +97,7 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> MergeLo<'a, T, C> {
         for i in 0..first_len {
             ptr::copy_nonoverlapping(ret_val.list.get_unchecked(i), ret_val.tmp.get_unchecked_mut(i), 1);
         }
-        return ret_val;
+        ret_val
     }
     /// Perform the one-by-one comparison and insertion.
     unsafe fn merge(&mut self) {
@@ -193,7 +193,7 @@ impl<'a, T: 'a, C: Fn(&T, &T) -> Ordering> MergeHi<'a, T, C> {
         for i in 0..second_len {
             ptr::copy_nonoverlapping(ret_val.list.get_unchecked(i + first_len), ret_val.tmp.get_unchecked_mut(i), 1);
         }
-        return ret_val;
+        ret_val
     }
     /// Perform the one-by-one comparison and insertion.
     unsafe fn merge(&mut self) {

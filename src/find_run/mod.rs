@@ -28,18 +28,15 @@ pub fn get_run<T, C: Fn(&T, &T) -> Ordering>(list: &mut [T], c: C) -> usize {
     if ord {
         list.split_at_mut(len).0.reverse();
     }
-    return len;
+    len
 }
 
 
 /// Find a run. Returns true if it needs reversed, and false otherwise.
 pub fn find_run<T, C: Fn(&T, &T) -> Ordering>(list: &[T], c: C) -> (bool, usize) {
     let list_len = list.len();
-    if list_len == 0 {
-        return (false, 0);
-    }
-    if list_len == 1 {
-        return (false, 1);
+    if list_len < 2 {
+        return (false, list_len);
     }
     let mut pos = 1;
     match c(&list[1], &list[0]) {
@@ -47,13 +44,13 @@ pub fn find_run<T, C: Fn(&T, &T) -> Ordering>(list: &[T], c: C) -> (bool, usize)
             while pos < list_len - 1 && c(&list[pos + 1], &list[pos]) == Ordering::Less {
                 pos += 1;
             }
-            return (true, pos + 1);
+            (true, pos + 1)
         },
         _ => {
             while pos < list_len - 1 && c(&list[pos + 1], &list[pos]) != Ordering::Less {
                 pos += 1;
             }
-            return (false, pos + 1);
+            (false, pos + 1)
         }
     }
 }

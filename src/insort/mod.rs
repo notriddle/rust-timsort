@@ -22,7 +22,6 @@ mod tests;
 
 use std::cmp::Ordering;
 use std::ptr;
-use std::mem;
 
 /// Sorts the list using insertion sort.
 ///
@@ -42,8 +41,7 @@ pub fn sort<T, C: Fn(&T, &T) -> Ordering>(list: &mut [T], c: C) {
                 let list_j = list_ptr.offset(j as isize);
                 let tmp = ptr::read(list_i);
                 ptr::copy(list_j, list_j.offset(1), i - j);
-                ptr::copy_nonoverlapping(&tmp, list_j, 1);
-                mem::forget(tmp);
+                ptr::write(list_j, tmp);
             }
         }
     }
