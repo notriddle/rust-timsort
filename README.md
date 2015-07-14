@@ -6,6 +6,8 @@ Python and newer versions of Java.
 
 [Full documentation here.](https://www.notriddle.com/rustdoc/timsort/)
 
+[![Build Status](https://travis-ci.org/notriddle/rust-timsort.svg)](https://travis-ci.org/notriddle/rust-timsort)
+
 
 Performance
 -----------
