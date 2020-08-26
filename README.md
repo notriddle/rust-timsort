@@ -82,3 +82,14 @@ test sort_tiny_random_small  ... bench:         160 ns/iter (+/- 11) = 31 MB/s
 
 test result: ok. 0 passed; 0 failed; 0 ignored; 16 measured
 ```
+
+
+License
+------
+
+Licensed under either of these:
+
+ * Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
+   http://www.apache.org/licenses/LICENSE-2.0)
+ * MIT license ([LICENSE-MIT](LICENSE-MIT) or
+   http://opensource.org/licenses/MIT)
